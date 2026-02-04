@@ -5,7 +5,6 @@ from datetime import datetime
 
 # 1. Dashboard Configuration
 st.set_page_config(page_title="Gold Eye", layout="wide")
-st.set_page_config(page_title="Gold Bot Dashboard", layout="wide")
 
 # 2. Safe MT5 Import
 try:
@@ -15,7 +14,7 @@ except ImportError:
     MT5_ENABLED = False
 
 # 3. Sidebar Information
-st.sidebar.title("Bot Status")
+st.title("📊 Gold Eye Dashboard")
 if MT5_ENABLED:
     st.sidebar.success("MT5 Library Loaded")
 else:
@@ -62,4 +61,5 @@ st.table(df)
 # 7. Auto-Refresh logic
 st.empty()
 time.sleep(1)
+
 
