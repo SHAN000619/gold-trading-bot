@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 
 # 1. Dashboard Configuration
+st.set_page_config(page_title="Gold Eye", layout="wide")
 st.set_page_config(page_title="Gold Bot Dashboard", layout="wide")
 
 # 2. Safe MT5 Import
@@ -61,3 +62,4 @@ st.table(df)
 # 7. Auto-Refresh logic
 st.empty()
 time.sleep(1)
+
