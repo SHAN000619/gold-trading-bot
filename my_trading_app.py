@@ -25,33 +25,39 @@ st.markdown("""
         padding: 10px;
         border-radius: 10px;
     }
-    .stTabs [data-baseweb="tab"] {
-        color: #8e8e93;
-    }
-    .stTabs [aria-selected="true"] {
-        color: #f1c40f !important;
-        border-bottom-color: #f1c40f !important;
-    }
+    .stTabs [data-baseweb="tab"] { color: #8e8e93; }
+    .stTabs [aria-selected="true"] { color: #f1c40f !important; border-bottom-color: #f1c40f !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Data Fetching Function (Live Gold Price)
-def get_gold_data():
-    gold = yf.Ticker("GC=F") # Gold Futures
-    data = gold.history(period="1d", interval="15m")
-    return data
+# 3. Data Fetching with Safety
+def get_market_data():
+    try:
+        # Fetching Gold Futures (XAUUSD substitute)
+        gold = yf.Ticker("GC=F")
+        df = gold.history(period="1d", interval="15m")
+        if df.empty:
+            raise ValueError("No data found")
+        return df, True
+    except:
+        # Fallback dummy data if internet or API fails
+        dummy_df = pd.DataFrame({
+            'Open': [2030, 2032, 2031, 2034],
+            'High': [2035, 2036, 2033, 2038],
+            'Low': [2028, 2030, 2029, 2032],
+            'Close': [2032, 2031, 2034, 2036]
+        }, index=pd.date_range(datetime.now(), periods=4, freq='15min'))
+        return dummy_df, False
 
-try:
-    live_data = get_gold_data()
-    current_price = live_data['Close'].iloc[-1]
-    prev_price = live_data['Close'].iloc[-2]
-    price_diff = current_price - prev_price
-except:
-    current_price, price_diff = 2035.50, 0.45
+# Get data once at the start of the script
+live_data, is_live = get_market_data()
+current_price = live_data['Close'].iloc[-1]
+price_diff = current_price - live_data['Close'].iloc[-2]
 
 # Header
 st.markdown(f"### Gold Eye Terminal")
-st.markdown(f"🕒 {datetime.now().strftime('%H:%M:%S')} | 🟢 Live")
+status_icon = "🟢 Live" if is_live else "🟠 Offline Mode"
+st.markdown(f"🕒 {datetime.now().strftime('%H:%M:%S')} | {status_icon}")
 
 # 4. Navigation Tabs
 tabs = st.tabs(["📊 Quotes", "📈 Charts", "💼 Trade", "📜 History"])
@@ -64,39 +70,28 @@ with tabs[0]: # Quotes
         'Change': [f"{price_diff:+.2f}", "-0.0001", "+150.40"]
     }))
 
-with tabs[1]: # Charts (Real Data)
-    st.write("XAUUSD, M15 (Live Feed)")
+with tabs[1]: # Charts
+    st.write("XAUUSD, M15 (Real-time Feed)")
     fig = go.Figure(data=[go.Candlestick(
         x=live_data.index,
-        open=live_data['Open'],
-        high=live_data['High'],
-        low=live_data['Low'],
-        close=live_data['Close'],
+        open=live_data['Open'], high=live_data['High'],
+        low=live_data['Low'], close=live_data['Close'],
         increasing_line_color= '#2ecc71', decreasing_line_color= '#e74c3c'
     )])
     fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0,r=0,t=0,b=0), xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
-    
 
-with tabs[2]: # Trade (Bot Logic)
+with tabs[2]: # Trade
     st.write("Positions")
     c1, c2 = st.columns(2)
     c1.metric("Balance", "$100,031.04", f"{price_diff:+.2f}")
     c2.metric("Equity", f"${100031.04 + price_diff:,.2f}")
-    
     st.markdown("---")
-    # Simulate a Bot Trade
-    st.warning("🤖 Bot Status: Scanning for RSI signals...")
-    st.write("Current RSI: **34.06**")
+    st.warning("🤖 Bot Status: Monitoring RSI Signals...")
 
 with tabs[3]: # History
     st.write("Trade History")
-    history_data = {
-        'Time': ['10:15', '11:30'],
-        'Type': ['BUY', 'SELL'],
-        'Profit': ['+$35.00', '+$58.00']
-    }
-    st.table(pd.DataFrame(history_data))
+    st.markdown("<br><center><img src='https://cdn-icons-png.flaticon.com/512/5058/5058432.png' width='80'><br>Empty history</center>", unsafe_allow_html=True)
 
-# Auto-refresh
+# Refresh
 time.sleep(2)
