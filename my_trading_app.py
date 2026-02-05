@@ -2,73 +2,73 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
+import random
 
-# 1. Page Config
-st.set_page_config(page_title="Gold Eye Mobile", layout="wide")
+# 1. Page Configuration
+st.set_page_config(page_title="Gold Eye Terminal", layout="wide")
 
-# 2. MT5 Dark Style CSS
+# 2. MT5 Dark Mobile CSS
 st.markdown("""
     <style>
     .main { background-color: #000000; }
-    /* Bottom Navigation Bar */
-    .st-emotion-cache-183lyct { 
-        padding-top: 0rem; 
-    }
-    /* Metric Card Styling */
+    header {visibility: hidden;}
+    
+    /* Metric Styling */
     div[data-testid="stMetric"] {
         background-color: #1c1c1e;
-        border-radius: 10px;
-        padding: 10px;
+        border-radius: 12px;
+        padding: 15px !important;
+        border: 0.5px solid #333;
     }
-    /* Bottom Nav Fix */
-    .fixed-bottom {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        width: 100%;
+
+    /* Professional Text */
+    h3 { color: #ffffff !important; font-size: 22px !important; }
+    .stMarkdown p { color: #8e8e93; }
+    
+    /* Navigation Simulation */
+    .nav-box {
         background-color: #1c1c1e;
-        display: flex;
-        justify-content: space-around;
-        padding: 10px 0;
-        border-top: 0.5px solid #333;
-        z-index: 1000;
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid #333;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Sidebar (Settings)
-st.sidebar.title("Settings")
-mode = st.sidebar.selectbox("Theme", ["Dark Mode", "Classic"])
+# 3. Top Status Bar
+col_t1, col_t2 = st.columns([0.7, 0.3])
+with col_t1:
+    st.markdown(f"### Gold Eye Terminal")
+with col_t2:
+    st.markdown("🔴 **Live**")
 
-# 4. Top Header (MT5 Style)
-col_h1, col_h2 = st.columns([0.8, 0.2])
-with col_h1:
-    st.subheader("Gold Eye Terminal")
-with col_h2:
-    st.write("🔴 Live")
+st.markdown("---")
 
-# 5. Bottom Navigation Logic (Using Radio as Buttons)
-selected_tab = st.sidebar.radio("Navigation", ["Quotes", "Charts", "Trade", "History"], index=2)
+# 4. Mobile Navigation (Simple Tabs for Mobile)
+tabs = st.tabs(["📊 Quotes", "📈 Charts", "💼 Trade", "📜 History"])
 
-# 6. Page Content based on selection
-if selected_tab == "Quotes":
-    st.write("### Market Watch")
-    st.table(pd.DataFrame({'Symbol': ['XAUUSD', 'EURUSD'], 'Bid': [2035.10, 1.0850], 'Ask': [2035.50, 1.0852]}))
+# 5. Tab Content
+with tabs[0]:
+    st.write("Market Watch")
+    prices = {'Symbol': ['XAUUSD', 'EURUSD', 'GBPUSD'], 'Bid': [2035.10, 1.0852, 1.2640], 'Ask': [2035.55, 1.0854, 1.2642]}
+    st.table(pd.DataFrame(prices))
 
-elif selected_tab == "Charts":
-    st.write("### XAUUSD, M15")
-    fig = go.Figure(data=[go.Candlestick(x=[1,2,3,4], open=[2030,2032,2031,2034], high=[2035,2036,2033,2038], low=[2028,2030,2029,2032], close=[2032,2031,2034,2036])])
-    fig.update_layout(template="plotly_dark", height=500)
+with tabs[1]:
+    st.write("XAUUSD, M15")
+    fig = go.Figure(data=[go.Candlestick(x=list(range(10)),
+                open=[2030+i for i in range(10)], high=[2035+i for i in range(10)],
+                low=[2028+i for i in range(10)], close=[2032+i for i in range(10)])])
+    fig.update_layout(template="plotly_dark", height=400, margin=dict(l=0,r=0,t=0,b=0))
     st.plotly_chart(fig, use_container_width=True)
 
-elif selected_tab == "Trade":
-    st.write("### Positions")
+with tabs[2]:
+    st.write("Positions")
     st.metric("Balance", "$100,031.04", "+0.05%")
-    st.markdown("---")
     st.info("No Active Positions")
 
-elif selected_tab == "History":
-    st.write("### Trade History")
-    # Empty state like your screenshot
-    st.image("https://cdn-icons-png.flaticon.com/512/5058/5058432.png", width=100)
-    st.write("Empty history")
+with tabs[3]:
+    # Matching your screenshot
+    st.write("Trade History")
+    st.markdown("<br><br><center><img src='https://cdn-icons-png.flaticon.com/512/5058/5058432.png' width='80'></center>", unsafe_allow_html=True)
+    st.markdown("<center>Empty history</center>", unsafe_allow_html=True)
