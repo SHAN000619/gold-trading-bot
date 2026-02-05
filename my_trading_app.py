@@ -1,103 +1,83 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
-import numpy as np
 
-# 1. Page Config
-st.set_page_config(page_title="Gold Eye Live", layout="wide")
+# 1. Page Configuration
+st.set_page_config(page_title="Gold Eye Pro", layout="wide")
 
-# 2. Ultra-Dark UI Styling (MT5 Inspired)
+# 2. Advanced MT5 Style CSS
 st.markdown("""
     <style>
     .main { background-color: #000000; }
     header {visibility: hidden;}
-    div[data-testid="stMetric"] {
-        background-color: #111111;
-        border: 0.5px solid #333;
-        border-radius: 10px;
-        padding: 10px !important;
-    }
-    .stTabs [data-baseweb="tab-list"] { background-color: #000000; }
-    .stTabs [data-baseweb="tab"] { color: #8e8e93; font-weight: bold; }
-    .stTabs [aria-selected="true"] { color: #f1c40f !important; border-bottom: 2px solid #f1c40f !important; }
+    .stMetric { background-color: #111111; border: 0.5px solid #333; border-radius: 8px; padding: 10px; }
+    /* Top Price Buttons */
+    .price-box { display: flex; justify-content: space-around; background: #111; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+    .sell-btn { color: #ef5350; font-weight: bold; }
+    .buy-btn { color: #26a69a; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Live Data Simulation Logic
-@st.cache_data(ttl=1) # තත්පරයකින් දත්ත අලුත් කරයි
-def fetch_live_gold():
+# 3. Live Data Fetching
+def get_live_data():
     try:
-        # Fetching Gold Futures (XAUUSD)
-        gold = yf.Ticker("GC=F")
-        df = gold.history(period="1d", interval="1m").tail(30) # අවසන් විනාඩි 30 ක දත්ත
-        return df, True
+        data = yf.Ticker("GC=F").history(period="1d", interval="1m").tail(50)
+        # RSI Calculation
+        delta = data['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        data['RSI'] = 100 - (100 / (1 + rs))
+        return data
     except:
-        # Fallback dummy data logic
-        dates = [datetime.now() - timedelta(minutes=i) for i in range(30)]
-        prices = np.random.normal(2035, 2, 30).cumsum()
-        df = pd.DataFrame({'Open': prices-1, 'High': prices+2, 'Low': prices-2, 'Close': prices}, index=dates)
-        return df, False
+        return pd.DataFrame()
 
-live_df, is_online = fetch_live_gold()
-current_price = live_df['Close'].iloc[-1]
-price_diff = current_price - live_df['Close'].iloc[-2]
+df = get_live_data()
+if not df.empty:
+    current_price = df['Close'].iloc[-1]
+    bid = current_price - 0.20
+    ask = current_price + 0.20
 
-# --- Header Section ---
-st.markdown(f"### 🟨 Gold Eye Live Terminal")
-st.caption(f"Server Time: {datetime.now().strftime('%H:%M:%S')} | Connection: {'🟢 Active' if is_online else '🟠 Simulation Mode'}")
+# 4. Top Trading Panel
+st.markdown(f"""
+    <div class="price-box">
+        <div class="sell-btn">SELL<br>{bid:.2f}</div>
+        <div style="color:white; font-size:12px;">XAUUSD<br>0.01</div>
+        <div class="buy-btn">BUY<br>{ask:.2f}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# 4. Main Tabs
+# 5. Navigation Tabs
 tabs = st.tabs(["📊 Quotes", "📈 Charts", "💼 Trade", "📜 History"])
 
-with tabs[1]: # Chart Tab
-    st.write(f"**XAUUSD, M1 (Real-time Feed)**")
+with tabs[1]: # Charts with RSI
+    # Subplots: Chart on top, RSI on bottom
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.05, row_heights=[0.7, 0.3])
     
-    # Creating the Candlestick Chart
-    fig = go.Figure(data=[go.Candlestick(
-        x=live_df.index,
-        open=live_df['Open'], high=live_df['High'],
-        low=live_df['Low'], close=live_df['Close'],
-        increasing_line_color='#26a69a', decreasing_line_color='#ef5350',
-        increasing_fillcolor='#26a69a', decreasing_fillcolor='#ef5350'
-    )])
+    # Candlestick
+    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], 
+                                 low=df['Low'], close=df['Close'], name="Gold"), row=1, col=1)
     
-    # Adding a moving price line (Current Price Label)
-    fig.add_hline(y=current_price, line_dash="dash", line_color="#ffffff", 
-                 annotation_text=f"Live: {current_price:.2f}", annotation_position="right")
+    # RSI
+    fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='#3498db')), row=2, col=1)
+    fig.add_hline(y=70, line_dash="dash", line_color="gray", row=2, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="gray", row=2, col=1)
 
-    fig.update_layout(
-        template="plotly_dark",
-        height=500,
-        margin=dict(l=10, r=50, t=10, b=10),
-        xaxis_rangeslider_visible=False,
-        yaxis=dict(side="right", gridcolor="#1f1f1f"),
-        xaxis=dict(gridcolor="#1f1f1f")
-    )
-    
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    fig.update_layout(template="plotly_dark", height=600, xaxis_rangeslider_visible=False, margin=dict(l=10,r=10,t=0,b=0))
+    st.plotly_chart(fig, use_container_width=True)
 
-with tabs[0]: # Quotes Tab
-    st.write("Market Watch")
-    st.table(pd.DataFrame({
-        'Symbol': ['XAUUSD', 'EURUSD', 'BTCUSD'],
-        'Price': [f"{current_price:.2f}", "1.0854", "96,240.50"],
-        'Change': [f"{price_diff:+.2f}", "-0.0001", "+245.10"]
-    }))
+with tabs[2]: # Trade Page
+    st.write("### Account Info")
+    st.metric("Balance", "5,111.28")
+    st.metric("Equity", f"{5111.28 + (current_price - 2035):.2f}")
+    st.write("---")
+    st.info("No active positions")
 
-with tabs[2]: # Trade Tab
-    st.metric("Total Balance", "$100,031.04", f"{price_diff:+.2f}")
-    st.markdown("---")
-    st.write("Current Positions: **None**")
-    st.warning("🤖 Bot is scanning for entry points...")
-
-with tabs[3]: # History Tab
-    st.markdown("<center><br>Empty history</center>", unsafe_allow_html=True)
-
-# 5. The "Magic" for live movement
-# මෙමගින් තත්පර කිහිපයකට වරක් පිටුව ඉබේම Refresh වේ
-st.empty()
-time.sleep(2)
+# Refresh every 5 seconds
+time.sleep(5)
 st.rerun()
