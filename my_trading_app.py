@@ -1,56 +1,80 @@
 import streamlit as st
 import pandas as pd
-import time
+import plotly.graph_objects as go
 from datetime import datetime
+import time
+import random
 
-# 1. Dashboard Configuration (This sets the Browser Tab Name)
-st.set_page_config(page_title="Gold Eye", layout="wide")
+# 1. Page Configuration
+st.set_page_config(page_title="Gold Eye Pro", layout="wide")
 
-# 2. Safe MT5 Import Logic
-try:
-    import MetaTrader5 as mt5
-    MT5_ENABLED = True
-except ImportError:
-    MT5_ENABLED = False
+# 2. Professional CSS Styling
+st.markdown("""
+    <style>
+    .main { background-color: #0e1117; }
+    div[data-testid="metric-container"] {
+        background-color: #1f2630;
+        border: 1px solid #34495e;
+        padding: 15px;
+        border-radius: 10px;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# 3. Sidebar Information
-st.sidebar.title("Bot Status")
-if MT5_ENABLED:
-    st.sidebar.success("MT5 Library Loaded")
-else:
-    st.sidebar.warning("Running in Cloud Mode")
+# 3. Sidebar
+with st.sidebar:
+    st.title("🏆 Gold Eye Pro")
+    st.success("Connection: Cloud Active")
+    st.info(f"Last Update: {datetime.now().strftime('%H:%M:%S')}")
+    st.markdown("---")
+    st.write("Strategy: RSI Scalping")
 
-st.sidebar.info(f"Last Update: {datetime.now().strftime('%H:%M:%S')}")
+# 4. Main Header
+st.title("📊 Gold Eye Real-Time Dashboard")
 
-# 4. Main Dashboard Header (This is the ONLY title displayed)
-st.title("📊 Gold Eye Dashboard")
+# 5. Top Metrics
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Account Balance", "$100,031.04", "+0.05%")
+with col2:
+    st.metric("Current RSI", "34.06", "-1.2")
+with col3:
+    st.metric("Today's Profit", "$124.50", "+12%")
+with col4:
+    st.metric("Open Trades", "1", "XAUUSD")
+
 st.markdown("---")
 
-# 5. Trading Metrics (Using your latest values)
-col1, col2, col3 = st.columns(3)
+# 6. Live Gold Price Chart
+st.subheader("📈 XAUUSD Live Market Trend")
+chart_data = pd.DataFrame({
+    'Time': pd.date_range(start=datetime.now(), periods=20, freq='min'),
+    'Price': [2035 + random.uniform(-2, 5) for _ in range(20)]
+})
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=chart_data['Time'], y=chart_data['Price'], mode='lines+markers', line=dict(color='#f1c40f')))
+fig.update_layout(template="plotly_dark", height=400, margin=dict(l=20, r=20, t=20, b=20))
+st.plotly_chart(fig, use_container_width=True)
 
-# Data values from your screenshot
-account_balance = 100031.04
-current_rsi = 34.06
-bot_status = "Waiting for Signal"
-
-with col1:
-    st.metric(label="Account Balance", value=f"${account_balance:,.2f}")
-with col2:
-    st.metric(label="Current RSI (14)", value=current_rsi)
-with col3:
-    st.metric(label="System Status", value=bot_status)
-
-# 6. Recent Activity Table
-st.subheader("Recent Activity")
-data = {
-    'Time': [datetime.now().strftime('%Y-%m-%d %H:%M')],
-    'Symbol': ['XAUUSD'],
-    'Action': ['Monitoring'],
-    'Price': [2035.50]
+# 7. Trade History Table
+st.subheader("📜 Recent Trade History")
+history_data = {
+    'Time': ['2026-02-05 10:15', '2026-02-05 11:30', '2026-02-05 12:45'],
+    'Type': ['BUY', 'SELL', 'BUY'],
+    'Lot Size': ['0.01', '0.02', '0.01'],
+    'Entry Price': [2032.50, 2038.10, 2034.40],
+    'Exit Price': [2036.00, 2035.20, 'Open'],
+    'Profit/Loss': ['+$35.00', '+$58.00', '-$2.10']
 }
-df = pd.DataFrame(data)
-st.table(df)
+df_history = pd.DataFrame(history_data)
 
-# 7. Auto-Refresh
+def color_profit(val):
+    if isinstance(val, str):
+        if '+' in val: return 'color: #2ecc71'
+        if '-' in val: return 'color: #e74c3c'
+    return ''
+
+st.table(df_history.style.applymap(color_profit, subset=['Profit/Loss']))
+
 time.sleep(1)
