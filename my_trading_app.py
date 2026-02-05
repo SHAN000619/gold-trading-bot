@@ -39,13 +39,16 @@ st.markdown("""
 # 3. Live Data Fetching Logic
 def fetch_mt5_data():
     try:
+        # Fetching XAUUSD equivalent
         gold = yf.Ticker("GC=F")
         df = gold.history(period="1d", interval="1m").tail(60)
-        # RSI Calculation
+        
+        # RSI Calculation (14 period)
         delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        df['RSI'] = 100 - (100 / (1 + (gain/loss)))
+        rs = gain / loss
+        df['RSI'] = 100 - (100 / (1 + rs))
         return df, True
     except:
         return pd.DataFrame(), False
@@ -57,7 +60,7 @@ if success:
     bid = curr - 0.15
     ask = curr + 0.15
 
-    # 4. Top Price Panel (Exactly like your video)
+    # 4. Top Price Panel (Exactly like MT5 Video)
     st.markdown(f"""
         <div class="trade-container">
             <div class="sell-side"><small>SELL</small><br>{bid:.2f}</div>
@@ -69,7 +72,7 @@ if success:
 # 5. Bottom Navigation Tabs
 tabs = st.tabs(["📊 Quotes", "📈 Charts", "💼 Trade", "📜 History"])
 
-with tabs[1]: # Advanced Chart Section
+with tabs[1]: # Charts with RSI (Like Video)
     if success:
         # Creating Subplots for Chart + RSI
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
@@ -86,9 +89,34 @@ with tabs[1]: # Advanced Chart Section
             x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='#3498db', width=1.5)
         ), row=2, col=1)
 
-        # RSI Levels (30, 70)
+        # RSI Overbought/Oversold Levels
         fig.add_hline(y=70, line_dash="dash", line_color="rgba(255,255,255,0.2)", row=2, col=1)
         fig.add_hline(y=30, line_dash="dash", line_color="rgba(255,255,255,0.2)", row=2, col=1)
 
         fig.update_layout(template="plotly_dark", height=600, 
-                          xaxis_ranges
+                          xaxis_rangeslider_visible=False, 
+                          margin=dict(l=5, r=5, t=0, b=0),
+                          paper_bgcolor='black', plot_bgcolor='black')
+        
+        fig.update_yaxes(side="right", gridcolor="#222")
+        fig.update_xaxes(gridcolor="#222")
+        
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    else:
+        st.error("Waiting for Live Market Data...")
+
+with tabs[2]: # Trade Page
+    st.markdown("### Account Summary")
+    c1, c2 = st.columns(2)
+    c1.metric("Balance", "$5,111.28")
+    c2.metric("Equity", f"${5111.28 + (0.50):.2f}", "+0.01%")
+    st.markdown("---")
+    st.info("🤖 Bot Status: Analyzing XAUUSD Market Structure...")
+
+with tabs[3]: # History
+    st.write("Trade History")
+    st.markdown("<center><br><br>Empty history</center>", unsafe_allow_html=True)
+
+# 6. Real-time Refresh
+time.sleep(3)
+st.rerun()
