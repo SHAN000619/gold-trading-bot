@@ -6,78 +6,89 @@ import yfinance as yf
 from datetime import datetime
 import time
 
-# 1. Page Configuration
-st.set_page_config(page_title="Gold Eye Pro", layout="wide")
+# 1. Page Config
+st.set_page_config(page_title="Gold Eye MT5 Pro", layout="wide")
 
-# 2. Advanced MT5 Style CSS
+# 2. MT5 Ultra-Dark CSS
 st.markdown("""
     <style>
     .main { background-color: #000000; }
     header {visibility: hidden;}
-    .stMetric { background-color: #111111; border: 0.5px solid #333; border-radius: 8px; padding: 10px; }
-    /* Top Price Buttons */
-    .price-box { display: flex; justify-content: space-around; background: #111; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-    .sell-btn { color: #ef5350; font-weight: bold; }
-    .buy-btn { color: #26a69a; font-weight: bold; }
+    
+    /* Top Trading Panel Styling */
+    .trade-container {
+        display: flex;
+        justify-content: space-between;
+        background-color: #111111;
+        padding: 15px;
+        border-radius: 10px;
+        border: 0.5px solid #333;
+        margin-bottom: 10px;
+    }
+    .sell-side { color: #ff4b4b; text-align: left; font-size: 20px; font-weight: bold; }
+    .buy-side { color: #00c853; text-align: right; font-size: 20px; font-weight: bold; }
+    .pair-info { color: white; text-align: center; font-size: 14px; }
+    
+    /* Tab Styling */
+    .stTabs [data-baseweb="tab-list"] { background-color: #000000; border-bottom: 0.5px solid #333; }
+    .stTabs [data-baseweb="tab"] { color: #8e8e93; }
+    .stTabs [aria-selected="true"] { color: #f1c40f !important; border-bottom: 2px solid #f1c40f !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Live Data Fetching
-def get_live_data():
+# 3. Live Data Fetching Logic
+def fetch_mt5_data():
     try:
-        data = yf.Ticker("GC=F").history(period="1d", interval="1m").tail(50)
+        gold = yf.Ticker("GC=F")
+        df = gold.history(period="1d", interval="1m").tail(60)
         # RSI Calculation
-        delta = data['Close'].diff()
+        delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / loss
-        data['RSI'] = 100 - (100 / (1 + rs))
-        return data
+        df['RSI'] = 100 - (100 / (1 + (gain/loss)))
+        return df, True
     except:
-        return pd.DataFrame()
+        return pd.DataFrame(), False
 
-df = get_live_data()
-if not df.empty:
-    current_price = df['Close'].iloc[-1]
-    bid = current_price - 0.20
-    ask = current_price + 0.20
+df, success = fetch_mt5_data()
 
-# 4. Top Trading Panel
-st.markdown(f"""
-    <div class="price-box">
-        <div class="sell-btn">SELL<br>{bid:.2f}</div>
-        <div style="color:white; font-size:12px;">XAUUSD<br>0.01</div>
-        <div class="buy-btn">BUY<br>{ask:.2f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+if success:
+    curr = df['Close'].iloc[-1]
+    bid = curr - 0.15
+    ask = curr + 0.15
 
-# 5. Navigation Tabs
+    # 4. Top Price Panel (Exactly like your video)
+    st.markdown(f"""
+        <div class="trade-container">
+            <div class="sell-side"><small>SELL</small><br>{bid:.2f}</div>
+            <div class="pair-info"><b>XAUUSD</b><br><small>M15 | 0.01 Lot</small></div>
+            <div class="buy-side"><small>BUY</small><br>{ask:.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# 5. Bottom Navigation Tabs
 tabs = st.tabs(["📊 Quotes", "📈 Charts", "💼 Trade", "📜 History"])
 
-with tabs[1]: # Charts with RSI
-    # Subplots: Chart on top, RSI on bottom
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                        vertical_spacing=0.05, row_heights=[0.7, 0.3])
-    
-    # Candlestick
-    fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], 
-                                 low=df['Low'], close=df['Close'], name="Gold"), row=1, col=1)
-    
-    # RSI
-    fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='#3498db')), row=2, col=1)
-    fig.add_hline(y=70, line_dash="dash", line_color="gray", row=2, col=1)
-    fig.add_hline(y=30, line_dash="dash", line_color="gray", row=2, col=1)
+with tabs[1]: # Advanced Chart Section
+    if success:
+        # Creating Subplots for Chart + RSI
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                            vertical_spacing=0.03, row_heights=[0.7, 0.3])
 
-    fig.update_layout(template="plotly_dark", height=600, xaxis_rangeslider_visible=False, margin=dict(l=10,r=10,t=0,b=0))
-    st.plotly_chart(fig, use_container_width=True)
+        # Candlestick Chart
+        fig.add_trace(go.Candlestick(
+            x=df.index, open=df['Open'], high=df['High'],
+            low=df['Low'], close=df['Close'], name="Price"
+        ), row=1, col=1)
 
-with tabs[2]: # Trade Page
-    st.write("### Account Info")
-    st.metric("Balance", "5,111.28")
-    st.metric("Equity", f"{5111.28 + (current_price - 2035):.2f}")
-    st.write("---")
-    st.info("No active positions")
+        # RSI Indicator
+        fig.add_trace(go.Scatter(
+            x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='#3498db', width=1.5)
+        ), row=2, col=1)
 
-# Refresh every 5 seconds
-time.sleep(5)
-st.rerun()
+        # RSI Levels (30, 70)
+        fig.add_hline(y=70, line_dash="dash", line_color="rgba(255,255,255,0.2)", row=2, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="rgba(255,255,255,0.2)", row=2, col=1)
+
+        fig.update_layout(template="plotly_dark", height=600, 
+                          xaxis_ranges
