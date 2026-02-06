@@ -3,4 +3,3 @@ pandas
 plotly
 yfinance
 pandas_ta
-MetaTrader5
