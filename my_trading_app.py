@@ -1,102 +1,82 @@
 import streamlit as st
+import MetaTrader5 as mt5
 import pandas as pd
+import pandas_ta as ta
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import yfinance as yf
-from datetime import datetime
 import time
 
-# 1. Page Configuration
-st.set_page_config(page_title="Gold Eye MT5 Pro", layout="wide")
+# --- CORE ENGINE & MT5 CONNECTION ---
+class GoldEyeMaster:
+    def __init__(self):
+        if not mt5.initialize():
+            st.error("MT5 Connector Offline")
 
-# 2. Advanced MT5 Style CSS
+    def fetch_live_data(self, symbol="XAUUSD", timeframe=mt5.TIMEFRAME_M15):
+        rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 100)
+        if rates is None: return pd.DataFrame()
+        df = pd.DataFrame(rates)
+        df['time'] = pd.to_datetime(df['time'], unit='s')
+        # Technical Logic (Core)
+        df['RSI'] = ta.rsi(df['close'], length=14)
+        return df
+
+    def get_account_summary(self):
+        acc = mt5.account_info()
+        return acc._asdict() if acc else None
+
+    def get_positions(self):
+        pos = mt5.positions_get()
+        if pos:
+            return pd.DataFrame(list(pos), columns=pos[0]._asdict().keys())
+        return pd.DataFrame()
+
+# --- UI INTERFACE ---
+st.set_page_config(page_title="Gold Eye Terminal", layout="wide")
+
+# MT5 Style UI Styling
 st.markdown("""
     <style>
     .main { background-color: #000000; }
+    .stMetric { background-color: #111; border: 1px solid #333; border-radius: 10px; padding: 10px; }
     header {visibility: hidden;}
-    .stMetric { background-color: #111111; border: 0.5px solid #333; border-radius: 8px; padding: 10px; }
-    
-    /* Top Trading Panel */
-    .trade-container {
-        display: flex;
-        justify-content: space-between;
-        background-color: #111111;
-        padding: 12px;
-        border-radius: 8px;
-        border-bottom: 1px solid #333;
-        margin-bottom: 5px;
-    }
-    .sell-side { color: #ff4b4b; text-align: left; font-size: 18px; font-weight: bold; }
-    .buy-side { color: #00c853; text-align: right; font-size: 18px; font-weight: bold; }
-    .pair-info { color: white; text-align: center; font-size: 12px; line-height: 1.2; }
-    
-    /* Navigation Tabs */
-    .stTabs [data-baseweb="tab-list"] { background-color: #000000; gap: 5px; }
-    .stTabs [data-baseweb="tab"] { color: #8e8e93; font-size: 12px; padding: 10px; }
-    .stTabs [aria-selected="true"] { color: #f1c40f !important; border-bottom: 2px solid #f1c40f !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Fetch Real-Time Data
-def get_mt5_data():
-    try:
-        gold = yf.Ticker("GC=F")
-        df = gold.history(period="1d", interval="1m").tail(60)
-        # RSI Calculation
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        df['RSI'] = 100 - (100 / (1 + (gain/loss)))
-        return df, True
-    except:
-        return pd.DataFrame(), False
+def main():
+    engine = GoldEyeMaster()
+    
+    # 1. Top Account Bar
+    acc = engine.get_account_summary()
+    if acc:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Balance", f"${acc['balance']:.2f}")
+        c2.metric("Equity", f"${acc['equity']:.2f}")
+        c3.metric("Floating P/L", f"${acc['profit']:.2f}", delta_color="normal")
+        c4.metric("Margin Free", f"${acc['margin_free']:.2f}")
 
-df, success = get_mt5_data()
-
-if success:
-    curr = df['Close'].iloc[-1]
-    bid, ask = curr - 0.10, curr + 0.10
-
-    # 4. Top Price Display (Like your video)
-    st.markdown(f"""
-        <div class="trade-container">
-            <div class="sell-side"><small>SELL</small><br>{bid:.2f}</div>
-            <div class="pair-info"><b>XAUUSD</b><br>M15 | 0.01 Lot</div>
-            <div class="buy-side"><small>BUY</small><br>{ask:.2f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-# 5. App Navigation
-tabs = st.tabs(["📊 Quotes", "📈 Charts", "💼 Trade", "📜 History"])
-
-with tabs[1]: # Charts with RSI
-    if success:
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                            vertical_spacing=0.03, row_heights=[0.7, 0.3])
-        # Price Chart
-        fig.add_trace(go.Candlestick(x=df.index, open=df['Open'], high=df['High'], 
-                                     low=df['Low'], close=df['Close'], name="Price"), row=1, col=1)
-        # RSI Chart
-        fig.add_trace(go.Scatter(x=df.index, y=df['RSI'], name="RSI(14)", line=dict(color='#3498db')), row=2, col=1)
+    # 2. Main Chart Section
+    df = engine.fetch_live_data()
+    if not df.empty:
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.7, 0.3])
+        # Candlestick
+        fig.add_trace(go.Candlestick(x=df['time'], open=df['open'], high=df['high'], low=df['low'], close=df['close'], name="Price"), row=1, col=1)
+        # RSI
+        fig.add_trace(go.Scatter(x=df['time'], y=df['RSI'], name="RSI", line=dict(color='#3498db')), row=2, col=1)
         
-        # Fixing the Error: Syntax was fixed here
-        fig.update_layout(template="plotly_dark", height=550, xaxis_rangeslider_visible=False, 
-                          margin=dict(l=5, r=5, t=0, b=0), paper_bgcolor='black', plot_bgcolor='black')
-        fig.update_yaxes(side="right", gridcolor="#222")
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        fig.update_layout(template="plotly_dark", height=500, xaxis_rangeslider_visible=False, margin=dict(l=0,r=30,t=0,b=0))
+        st.plotly_chart(fig, use_container_width=True)
+
+    # 3. Trade Management Section
+    st.subheader("Active Positions")
+    trades = engine.get_positions()
+    if not trades.empty:
+        # Show selected columns like MT5 app
+        st.dataframe(trades[['symbol', 'type', 'volume', 'price_open', 'price_current', 'profit']], use_container_width=True)
     else:
-        st.error("Connection Error. Retrying...")
+        st.info("No active positions. Scanning for Bot entry...")
 
-with tabs[2]: # Account Info
-    st.markdown("### Account Summary")
-    st.metric("Balance", "$5,111.28")
-    st.metric("Equity", f"${5111.28 + (0.50):.2f}", "+0.01%")
-    st.write("---")
-    st.info("🤖 Bot: Analyzing RSI Market Conditions...")
-
-with tabs[3]: # History
-    st.markdown("<center><br><br>Empty history</center>", unsafe_allow_html=True)
-
-# 6. Auto-Refresh
-time.sleep(3)
-st.rerun()
+if __name__ == "__main__":
+    main()
+    time.sleep(2)
+    st.rerun()
